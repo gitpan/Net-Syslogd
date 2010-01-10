@@ -446,7 +446,7 @@ If you don't know what that means visit L<http://perl.com/>.
 
 =head1 AUTHOR
 
-Copyright (C) Michael Vincent 2008
+Copyright (C) Michael Vincent 2010
 
 L<http://www.VinsWorld.com>
 

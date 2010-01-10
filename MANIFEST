@@ -2,7 +2,8 @@ Changes
 Makefile.PL
 MANIFEST
 README
-syslogd-sendtest.pl
-syslogd-simple.pl
+bin/syslogd-sendtest.pl
+bin/syslogd-simple.pl
 t/Net-Syslogd.t
 lib/Net/Syslogd.pm
+META.yml                                 Module meta-data (added by MakeMaker)
