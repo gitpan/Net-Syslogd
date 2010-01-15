@@ -1,4 +1,4 @@
-Net-Syslogd version 0.01
+Net-Syslogd version 0.02
 ========================
 
 INSTALLATION
@@ -9,6 +9,13 @@ To install this module type the following:
    make
    make test
    make install
+
+DEPENDENCIES
+
+This module requires these other modules and libraries:
+
+   IO::Socket
+   Test::Simple
 
 COPYRIGHT AND LICENCE
 

@@ -18,10 +18,10 @@ pod2usage(-verbose => 2) if defined $opt_man;
 
 my @logs = (
             # Strict RFC 3164
-            "<174>Dec 11 12:31:15 192.168.200.1 $0[$$]: Strict RFC 3164 format",
+            "<174>Dec 11 12:31:15 192.168.200.1 " . $0 . "[" . $$ . "]: Strict RFC 3164 format",
 
             # Net::Syslog
-            "<182>$0[$$]: Net::Syslog format",
+            "<182>" . $0 . "[" . $$ . "]: Net::Syslog format",
 
             # Cisco
             "<190>62: *Dec  4 12:31:15.087: %SYS-5-CONFIG_I: Cisco format"
@@ -30,7 +30,7 @@ my @logs = (
 for (@logs) {
     my $sock=new IO::Socket::INET(PeerAddr => 'localhost',
                                   PeerPort => 514,
-                                  Proto    => 'udp') or die "Socket could not be created : $!\n";
+                                  Proto    => 'udp') or die "Error creating Syslog sender - $!\n";
 
     print $sock $_;
     $sock->close();

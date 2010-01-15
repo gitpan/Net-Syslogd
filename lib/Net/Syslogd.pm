@@ -14,7 +14,7 @@ use Exporter;
 
 use IO::Socket;
 
-our $VERSION     = '0.01';
+our $VERSION     = '0.02';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
@@ -26,7 +26,7 @@ our @EXPORT_OK   = (@{$EXPORT_TAGS{'all'}});
 # Start Variables
 ########################################################
 use constant SYSLOGD_DEFAULT_PORT => 514;
-use constant SYSLOGD_MAX_SIZE     => 65511;
+use constant SYSLOGD_MAX_SIZE     => 1024;
 
 our @FACILITY = qw(kernel user mail system security internal printer news uucp clock security2 FTP NTP audit alert clock2 local0 local1 local2 local3 local4 local5 local6 local7);
 our @SEVERITY = qw(Emergency Alert Critical Error Warning Notice Informational Debug);
@@ -62,7 +62,7 @@ sub new {
                       '_UDPSERVER_' => $udpserver
                      }, $class
     } else {
-        $LASTERROR = "Error opening socket for listener: $@\n";
+        $LASTERROR = "Error opening socket for listener: $@";
         return(undef)
     }
 }
@@ -70,7 +70,7 @@ sub new {
 sub get_message {
 
     my $self  = shift;
-#    my $class = ref($self) || $self;
+    my $class = ref($self) || $self;
 
     my $message;
 
@@ -99,10 +99,9 @@ sub get_message {
             $message->{'_MESSAGE_'}{'PeerAddr'} = inet_ntoa($peeraddr);
             $message->{'_MESSAGE_'}{'datagram'} = $datagram;
 
-            return bless $message #, $class
+            return bless $message, $class
         } else {
-            $! = $udpserver->sockopt(SO_ERROR);
-            $LASTERROR = sprintf "Socket RECV error: %s\n", $!;
+            $LASTERROR = sprintf "Socket RECV error: %s", $udpserver->sockopt(SO_ERROR);
             return(undef)
         }
     } else {
@@ -114,7 +113,22 @@ sub get_message {
 sub process_message {
 
     my $self = shift;
-#    my $class = ref($self) || $self;
+    my $class = ref($self) || $self;
+
+    ### Allow to be called as subroutine
+    # Net::Syslogd->process_message($data)
+    if (($self eq $class) && ($class eq __PACKAGE__)) {
+        my %th;
+        $self = \%th;
+        ($self->{'_MESSAGE_'}{'datagram'}) = @_
+    }
+    # Net::Syslogd::process_message($data)
+    if ($class ne __PACKAGE__) {
+        my %th;
+        $self = \%th;
+        ($self->{'_MESSAGE_'}{'datagram'}) = $class;
+        $class = __PACKAGE__
+    }
 
     # Syslog RFC 3164 correct format:
     # <###>Mmm dd hh:mm:ss hostname tag msg
@@ -135,7 +149,7 @@ sub process_message {
 
     $self->{'_MESSAGE_'}{'hostname'} =~ s/\s+//;
 
-    return bless $self #, $class
+    return bless $self, $class
 }
 
 sub datagram {
@@ -250,7 +264,7 @@ Net::Syslogd - Perl implementation of Syslog Listener
 
 Net::Syslogd is a class implementing a simple Syslog listener in Perl.  
 Net::Syslogd will accept messages on the default Syslog port (UDP 514) 
-and attempt to decode them according to RFC 3164.
+and attempts to decode them according to RFC 3164.
 
 =head1 METHODS
 
@@ -273,14 +287,14 @@ Valid options are:
 
 =head2 get_message() - listen for Syslog message
 
-  $syslogd->get_message();
+  my $message = $syslogd->get_message();
 
 Listen for a Syslog message.  Timeout after default or user specified 
 timeout set in C<new> method and return '0'; else, return is defined.
 
 =head2 process_message() - process received Syslog message
 
-  $syslogd->process_message();
+  $message->process_message();
 
 Process a received Syslog message by RFC 3164 - or as close as possible. 
 RFC 3164 format is as follows:
@@ -293,18 +307,25 @@ RFC 3164 format is as follows:
 
 B<NOTE:>  This script parses the tag and msg as a single field.
 
-Allows the following methods to be called.
+This can also be called as a procedure if one is inclined to write 
+their own UDP listener instead of using C<get_message()>.  For example: 
+
+  $sock = IO::Socket::INET->new( blah blah blah );
+  $sock->recv($buffer, 1500);
+  $message = Net::Syslogd->process_message($buffer);
+
+In either instantiation, allows the following methods to be called.
 
 =head3 datagram() - return datagram from Syslog message
 
-  $syslogd->datagram();
+  $message->datagram();
 
 Return the raw datagram received from a processed (C<process_message()>) 
 Syslog message.
 
 =head3 peeraddr() - return remote address from Syslog message
 
-  $syslogd->peeraddr();
+  $message->peeraddr();
 
 Return peer address value from a received and processed 
 (C<process_message()>) Syslog message.  This is the address from the IP 
@@ -312,7 +333,7 @@ header on the UDP datagram.
 
 =head3 peerport() - return remote port from Syslog message
 
-  $syslogd->peerport();
+  $message->peerport();
 
 Return peer port value from a received and processed 
 (C<process_message()>) Syslog message.  This is the port from the IP 
@@ -320,7 +341,7 @@ header on the UDP datagram.
 
 =head3 priority() - return priority from Syslog message
 
-  $syslogd->priority();
+  $message->priority();
 
 Return priority value from a received and processed 
 (C<process_message()>) Syslog message.  This is the raw priority number 
@@ -328,7 +349,7 @@ not decoded into facility and severity.
 
 =head3 facility() - return facility from Syslog message
 
-  $syslogd->facility([1]);
+  $message->facility([1]);
 
 Return facility value from a received and processed 
 (C<process_message()>) Syslog message.  This is the text representation 
@@ -336,7 +357,7 @@ of the facility.  For the raw number, use the optional boolean argument.
 
 =head3 severity() - return severity from Syslog message
 
-  $syslogd->severity([1]);
+  $message->severity([1]);
 
 Return severity value from a received and processed 
 (C<process_message()>) Syslog message.  This is the text representation 
@@ -344,21 +365,21 @@ of the severity.  For the raw number, use the optional boolean argument.
 
 =head3 time() - return time from Syslog message
 
-  $syslogd->time();
+  $message->time();
 
 Return time value from a received and processed 
 (C<process_message()>) Syslog message.
 
 =head3 hostname() - return hostname from Syslog message
 
-  $syslogd->hostname();
+  $message->hostname();
 
 Return hostname value from a received and processed 
 (C<process_message()>) Syslog message.
 
 =head3 message() - return message from Syslog message
 
-  $syslogd->message();
+  $message->message();
 
 Return message value from a received and processed 
 (C<process_message()>) Syslog message.  Note this is the tag B<and> msg 
@@ -366,7 +387,7 @@ field from a properly formatted RFC 3164 Syslog message.
 
 =head2 error() - print last error
 
-  printf "Error: %s\n", $Net::Syslogd->error;
+  printf "Error: %s\n", Net::Syslogd->error;
 
 Return last error.
 

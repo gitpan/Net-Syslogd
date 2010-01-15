@@ -44,8 +44,13 @@ if (defined($opt{'interface'})) {
 }
 
 my $syslogd = Net::Syslogd->new(
-                                'Peerport' => $opt{'interface'}
-                               ) or die "$0: Error creating Syslogd listener: %s", Net::Syslogd->error;
+                                'LocalPort' => $opt{'interface'}
+                               );
+
+if (!$syslogd) {
+    printf "$0: Error creating Syslog listener: %s", Net::Syslogd->error;
+    exit 1
+}
 
 while (1) {
     my $message;
@@ -68,9 +73,9 @@ while (1) {
             my $outfile;
             if (defined($opt{'dir'})) { $outfile = $opt{'dir'} . "/" }
 
-            if    ($opt{'write'} == 1) { $outfile .= "syslogd.log"            }
+            if    ($opt{'write'} == 1) { $outfile .= "syslogd.log"               }
             elsif ($opt{'write'} == 2) { $outfile .= $message->facility . ".log" }
-            else                       { $outfile .= $message->peeraddr . ".log"           }
+            else                       { $outfile .= $message->peeraddr . ".log" }
 
             if (open(OUT, ">>$outfile")) {
                 print OUT $p;
@@ -96,7 +101,6 @@ Listens for Syslog messages and logs to console and
 optional file.  Tries to decode according to RFC 3164 
 message format.  Syslog columns are:
 
-  Timestamp (yyyymmddhhmmss)
   Source IP Address
   Source UDP port
   Facility
