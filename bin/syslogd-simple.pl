@@ -44,7 +44,7 @@ if (defined($opt{'interface'})) {
 }
 
 my $syslogd = Net::Syslogd->new(
-                                'LocalPort' => $opt{'interface'}
+                                LocalPort => $opt{'interface'}
                                );
 
 if (!$syslogd) {

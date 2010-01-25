@@ -14,7 +14,7 @@ use Exporter;
 
 use IO::Socket;
 
-our $VERSION     = '0.02';
+our $VERSION     = '0.03';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
@@ -43,22 +43,32 @@ sub new {
     my $self = shift;
     my $class = ref($self) || $self;
 
-    my %cfg = @_;
-
     my %params = (
-        'Proto' => 'udp',
-        'LocalPort' => $cfg{'LocalPort'} || SYSLOGD_DEFAULT_PORT,
+        'Proto'     => 'udp',
+        'LocalPort' => SYSLOGD_DEFAULT_PORT,
+        'Timeout'   => 10
     );
 
-    if ($cfg{'LocalAddr'}) {
-        $params{'LocalAddr'} = $cfg{'LocalAddr'}
+    my %cfg;
+    if (@_ == 1) {
+        $LASTERROR = "Insufficient number of args - @_";
+        return(undef)
+    } else {
+        %cfg = @_;
+        for (keys(%cfg)) {
+            if (/^-?localport$/i) {
+                $params{'LocalPort'} = $cfg{$_}
+            } elsif (/^-?localaddr$/i) {
+                $params{'LocalAddr'} = $cfg{$_}
+            } elsif (/^-?timeout$/i) {
+                $params{'Timeout'} = $cfg{$_}
+            }
+        }
     }
 
     if (my $udpserver = IO::Socket::INET->new(%params)) {
         return bless {
-                      'LocalPort'   => SYSLOGD_DEFAULT_PORT,
-                      'Timeout'     => 10,
-                      %cfg,         # merge user parameters
+                      %params,         # merge user parameters
                       '_UDPSERVER_' => $udpserver
                      }, $class
     } else {
@@ -132,7 +142,7 @@ sub process_message {
 
     # Syslog RFC 3164 correct format:
     # <###>Mmm dd hh:mm:ss hostname tag msg
-    # NOTE:  This script parses the tag and msg as a single field called msg
+    # NOTE:  This module parses the tag and msg as a single field called msg
     #
     # Attempt 1:
     # $datagram =~ /<(\d{1,3})>(([JFMASONDjfmasond]\w\w) {1,2}(\d+) (\d{2}:\d{2}:\d{2}) )?((([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|([a-zA-Z\-]+)) )?(.*)/;
@@ -175,7 +185,7 @@ sub priority {
 sub facility {
     my ($self, $arg) = @_;
 
-    if (defined($arg) && ($arg > 1)) {
+    if (defined($arg) && ($arg >= 1)) {
         return $self->{'_MESSAGE_'}{'facility'}
     } else {
         return $FACILITY[$self->{'_MESSAGE_'}{'facility'}]
@@ -185,7 +195,7 @@ sub facility {
 sub severity {
     my ($self, $arg) = @_;
 
-    if (defined($arg) && ($arg > 1)) {
+    if (defined($arg) && ($arg >= 1)) {
         return $self->{'_MESSAGE_'}{'severity'}
     } else {
         return $SEVERITY[$self->{'_MESSAGE_'}{'severity'}]
@@ -305,7 +315,7 @@ RFC 3164 format is as follows:
     |         Time
    Priority
 
-B<NOTE:>  This script parses the tag and msg as a single field.
+B<NOTE:>  This module parses the tag and msg as a single field.
 
 This can also be called as a procedure if one is inclined to write 
 their own UDP listener instead of using C<get_message()>.  For example: 
@@ -385,7 +395,7 @@ Return message value from a received and processed
 (C<process_message()>) Syslog message.  Note this is the tag B<and> msg 
 field from a properly formatted RFC 3164 Syslog message.
 
-=head2 error() - print last error
+=head2 error() - return last error
 
   printf "Error: %s\n", Net::Syslogd->error;
 
