@@ -15,3 +15,8 @@ Revision history for Perl extension Net::Syslogd.
 0.03  Mon Jan 18 16:29:48 2010
       - Allowed legacy and case insensitive calling of switches.
 
+0.04  Fri Oct 15 23:30:00 2010
+      - Added PDU size and timeout options to get_message() method.
+      - Updated regex in process_message() and added regex for user 
+        defined regex to be passed in.
+      - Updated bin/ scripts.

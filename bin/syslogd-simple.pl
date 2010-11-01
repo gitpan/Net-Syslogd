@@ -9,9 +9,9 @@ my %opt;
 my ($opt_help, $opt_man);
 
 GetOptions(
-  'directory=s' => \$opt{'dir'},
-  'interface:i' => \$opt{'interface'},
-  'write+'      => \$opt{'write'},
+  'directory=s' => \$opt{dir},
+  'interface:i' => \$opt{interface},
+  'write+'      => \$opt{write},
   'help!'       => \$opt_help,
   'man!'        => \$opt_man
 ) or pod2usage(-verbose => 0);
@@ -20,43 +20,49 @@ pod2usage(-verbose => 1) if defined $opt_help;
 pod2usage(-verbose => 2) if defined $opt_man;
 
 # -d is a directory, if it exists, assign it
-if (defined($opt{'dir'})) {
+if (defined($opt{dir})) {
 
     # replace \ with / for compatibility with UNIX/Windows
-    $opt{'dir'} =~ s/\\/\//g;
+    $opt{dir} =~ s/\\/\//g;
 
     # remove trailing / so we're sure it does NOT exist and we CAN put it in later
-    $opt{'dir'} =~ s/\/$//;
+    $opt{dir} =~ s/\/$//;
 
-    if (!(-e $opt{'dir'})) {
-        print "$0: directory does not exist - $opt{'dir'}";
+    if (!(-e $opt{dir})) {
+        print "$0: directory does not exist - $opt{dir}";
         exit 1
     }
-    $opt{'write'} = 1 if (!$opt{'write'})
+    $opt{write} = 1 if (!$opt{write})
 }
 
-if (defined($opt{'interface'})) {
-    if (!(($opt{'interface'} > 0) && ($opt{'interface'} < 65536))) {
-        print "$0: port not valid - $opt{'interface'}"
+if (defined($opt{interface})) {
+    if (!(($opt{interface} > 0) && ($opt{interface} < 65536))) {
+        print "$0: port not valid - $opt{interface}"
     }
 } else {
-    $opt{'interface'} = '514'
+    $opt{interface} = '514'
 }
 
 my $syslogd = Net::Syslogd->new(
-                                LocalPort => $opt{'interface'}
+                                LocalPort => $opt{interface}
                                );
 
 if (!$syslogd) {
-    printf "$0: Error creating Syslog listener: %s", Net::Syslogd->error;
+    printf "$0: Error creating Syslogd listener: %s", Net::Syslogd->error;
     exit 1
 }
 
 while (1) {
-    my $message;
-    if (!($message = $syslogd->get_message())) { next }
+    my $message = $syslogd->get_message();
 
-    if (!(defined($message->process_message()))) {
+    if (!defined($message)) {
+        printf "$0: %s\n", Net::Syslogd->error;
+        exit 1
+    } elsif ($message == 0) {
+        next
+    }
+
+    if (!defined($message->process_message())) {
         printf "$0: %s\n", Net::Syslogd->error
     } else {
         my $p = sprintf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
@@ -69,12 +75,12 @@ while (1) {
                          $message->message;
         print $p;
 
-        if ($opt{'write'}) {
+        if ($opt{write}) {
             my $outfile;
-            if (defined($opt{'dir'})) { $outfile = $opt{'dir'} . "/" }
+            if (defined($opt{dir}))  { $outfile = $opt{dir} . "/" }
 
-            if    ($opt{'write'} == 1) { $outfile .= "syslogd.log"               }
-            elsif ($opt{'write'} == 2) { $outfile .= $message->facility . ".log" }
+            if    ($opt{write} == 1) { $outfile .= "syslogd.log"               }
+            elsif ($opt{write} == 2) { $outfile .= $message->facility . ".log" }
             else                       { $outfile .= $message->peeraddr . ".log" }
 
             if (open(OUT, ">>$outfile")) {

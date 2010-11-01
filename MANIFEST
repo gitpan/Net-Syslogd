@@ -5,5 +5,6 @@ README
 bin/syslogd-sendtest.pl
 bin/syslogd-simple.pl
 t/Net-Syslogd.t
+test.pl
 lib/Net/Syslogd.pm
 META.yml                                 Module meta-data (added by MakeMaker)

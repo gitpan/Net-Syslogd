@@ -14,11 +14,11 @@ use Exporter;
 
 use IO::Socket;
 
-our $VERSION     = '0.03';
+our $VERSION     = '0.04';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
-                    'all' => [qw(@FACILITY @SEVERITY)]
+                    'all' => [qw()]
                    );
 our @EXPORT_OK   = (@{$EXPORT_TAGS{'all'}});
 
@@ -26,7 +26,9 @@ our @EXPORT_OK   = (@{$EXPORT_TAGS{'all'}});
 # Start Variables
 ########################################################
 use constant SYSLOGD_DEFAULT_PORT => 514;
-use constant SYSLOGD_MAX_SIZE     => 1024;
+use constant SYSLOGD_RFC_SIZE     => 1024;  # RFC Limit
+use constant SYSLOGD_REC_SIZE     => 2048;  # Recommended size
+use constant SYSLOGD_MAX_SIZE     => 65467; # Actual limit (65535 - IP/UDP)
 
 our @FACILITY = qw(kernel user mail system security internal printer news uucp clock security2 FTP NTP audit alert clock2 local0 local1 local2 local3 local4 local5 local6 local7);
 our @SEVERITY = qw(Emergency Alert Critical Error Warning Notice Informational Debug);
@@ -43,25 +45,30 @@ sub new {
     my $self = shift;
     my $class = ref($self) || $self;
 
+    # Default parameters
     my %params = (
         'Proto'     => 'udp',
         'LocalPort' => SYSLOGD_DEFAULT_PORT,
         'Timeout'   => 10
     );
 
-    my %cfg;
     if (@_ == 1) {
         $LASTERROR = "Insufficient number of args - @_";
         return(undef)
     } else {
-        %cfg = @_;
+        my %cfg = @_;
         for (keys(%cfg)) {
             if (/^-?localport$/i) {
                 $params{'LocalPort'} = $cfg{$_}
             } elsif (/^-?localaddr$/i) {
                 $params{'LocalAddr'} = $cfg{$_}
             } elsif (/^-?timeout$/i) {
-                $params{'Timeout'} = $cfg{$_}
+                if ($cfg{$_} =~ /^\d+$/) {
+                    $params{'Timeout'} = $cfg{$_}
+                } else {
+                    $LASTERROR = "Invalid timeout - $cfg{$_}";
+                    return(undef)
+                }
             }
         }
     }
@@ -78,7 +85,6 @@ sub new {
 }
 
 sub get_message {
-
     my $self  = shift;
     my $class = ref($self) || $self;
 
@@ -90,9 +96,41 @@ sub get_message {
         $message->{$key} = $self->{$key}
     }
 
+    my $datagramsize = SYSLOGD_MAX_SIZE;
+    if (@_ == 1) {
+        $LASTERROR = "Insufficient number of args: @_";
+        return(undef)
+    } else {
+        my %args = @_;        
+        for (keys(%args)) {
+            # -maxsize
+            if (/^-?(?:max)?size$/i) {
+                if ($args{$_} =~ /^\d+$/) {
+                    if (($args{$_} >= 1) && ($args{$_} <= SYSLOGD_MAX_SIZE)) {
+                        $datagramsize = $args{$_}
+                    }
+                } elsif ($args{$_} =~ /^rfc$/i) {
+                    $datagramsize = SYSLOGD_RFC_SIZE
+                } elsif ($args{$_} =~ /^rec(?:ommend)?(?:ed)?$/i) {
+                    $datagramsize = SYSLOGD_REC_SIZE
+                } else {
+                    $LASTERROR = "Not a valid size: $args{$_}";
+                    return(undef)
+                }
+            # -timeout
+            } elsif (/^-?timeout$/i) {
+                if ($args{$_} =~ /^\d+$/) {
+                    $message->{'Timeout'} = $args{$_}
+                } else {
+                    $LASTERROR = "Invalid timeout - $args{$_}";
+                    return(undef)
+                }
+            }
+        }
+    }
+
     my $Timeout = $message->{'Timeout'};
     my $udpserver = $self->{'_UDPSERVER_'};
-
     my $datagram;
 
     # vars for IO select
@@ -102,7 +140,7 @@ sub get_message {
     # check if a message is waiting
     if (select($rout=$rin, undef, $eout=$ein, $Timeout)) {
         # read the message
-        if ($udpserver->recv($datagram, SYSLOGD_MAX_SIZE)) {
+        if ($udpserver->recv($datagram, $datagramsize)) {
 
             my ($peerport, $peeraddr) = sockaddr_in($udpserver->peername);
             $message->{'_MESSAGE_'}{'PeerPort'} = $peerport;
@@ -121,7 +159,6 @@ sub get_message {
 }
 
 sub process_message {
-
     my $self = shift;
     my $class = ref($self) || $self;
 
@@ -142,18 +179,63 @@ sub process_message {
 
     # Syslog RFC 3164 correct format:
     # <###>Mmm dd hh:mm:ss hostname tag msg
+    #
     # NOTE:  This module parses the tag and msg as a single field called msg
-    #
-    # Attempt 1:
-    # $datagram =~ /<(\d{1,3})>(([JFMASONDjfmasond]\w\w) {1,2}(\d+) (\d{2}:\d{2}:\d{2}) )?((([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|([a-zA-Z\-]+)) )?(.*)/;
-    #
-    # Attempt 2: this accounts for the Cisco format (not strict RFC 3164)
-    $self->{'_MESSAGE_'}{'datagram'} =~ /<(\d{1,3})>[\d{1,}: \*]*(([JFMASONDjfmasond]\w\w) {1,2}(\d+) (\d{2}:\d{2}:\d{2}[\.\d{1,3}]*))?:*\s*((([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|([a-zA-Z\-]+)) )?(.*)/;
+    ######
+    # Cisco:
+    #   service timestamps log uptime
+    # <189>82: 00:20:10: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime
+    # <189>83: *Oct 16 21:41:00: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime msec
+    # <189>88: *Oct 16 21:46:48.671: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime year
+    # <189>86: *Oct 16 2010 21:45:56: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime show-timezone
+    # <189>92: *Oct 16 21:49:30 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime msec year
+    # <189>90: *Oct 16 2010 21:47:50.439: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime msec show-timezone
+    # <189>93: *Oct 16 21:51:13.823 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime year show-timezone
+    # <189>94: *Oct 16 2010 21:51:49 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    #   service timestamps log datetime msec year show-timezone
+    # <189>91: *Oct 16 2010 21:48:41.663 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
+    my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)) )?(.*)';
+
+    # If more than 1 argument, parse the options
+    if (@_ != 1) {
+        my %args = @_;
+        for (keys(%args)) {
+            # -datagram
+            if ((/^-?data(?:gram)?$/i) || (/^-?pdu$/i)) {
+                $self->{'_MESSAGE_'}{'datagram'} = $args{$_}
+            }
+            # -regex
+            if (/^-?regex$/i) {
+                if ($args{$_} =~ /^rfc(?:3164)?$/i) {
+                    # Strict RFC 3164
+                    $regex = '<(\d{1,3})>((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}))?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)) )?(.*)'
+                } else {
+                    $regex = $args{$_};
+                    # strip leading / if found
+                    $regex =~ s/^\///;
+                    # strip trailing / if found
+                    $regex =~ s/\/$//
+                }
+            }
+        }
+    }
+
+    my $Cregex = qr/$regex/;
+
+    # Parse message
+    $self->{'_MESSAGE_'}{'datagram'} =~ /$Cregex/;
 
     $self->{'_MESSAGE_'}{'priority'} = $1;
     $self->{'_MESSAGE_'}{'time'}     = $2 || 0;
-    $self->{'_MESSAGE_'}{'hostname'} = $6 || 0;
-    $self->{'_MESSAGE_'}{'message'}  = $10;
+    $self->{'_MESSAGE_'}{'hostname'} = $3 || 0;
+    $self->{'_MESSAGE_'}{'message'}  = $4;
     $self->{'_MESSAGE_'}{'severity'} = $self->{'_MESSAGE_'}{'priority'} % 8;
     $self->{'_MESSAGE_'}{'facility'} = ($self->{'_MESSAGE_'}{'priority'} - $self->{'_MESSAGE_'}{'severity'}) / 8;
 
@@ -250,13 +332,19 @@ Net::Syslogd - Perl implementation of Syslog Listener
   use Net::Syslogd;
 
   my $syslogd = Net::Syslogd->new()
-    or die "Error creating Syslogd listener: %s", Net::Syslogd->error;
+    or die "Error creating Syslogd listener: ", Net::Syslogd->error;
 
   while (1) {
-      my $message;
-      if (!($message = $syslogd->get_message())) { next }
+      my $message = $syslogd->get_message();
 
-      if (!(defined($message->process_message()))) {
+      if (!defined($message)) {
+          printf "$0: %s\n", Net::Syslogd->error;
+          exit 1
+      } elsif ($message == 0) {
+          next
+      }
+
+      if (!defined($message->process_message())) {
           printf "$0: %s\n", Net::Syslogd->error
       } else {
           printf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
@@ -274,15 +362,11 @@ Net::Syslogd - Perl implementation of Syslog Listener
 
 Net::Syslogd is a class implementing a simple Syslog listener in Perl.  
 Net::Syslogd will accept messages on the default Syslog port (UDP 514) 
-and attempts to decode them according to RFC 3164.
+and attempt to decode them according to RFC 3164.
 
 =head1 METHODS
 
 =head2 new() - create a new Net::Syslogd object
-
-  my $syslogd = new Net::Syslogd([OPTIONS]);
-
-or
 
   my $syslogd = Net::Syslogd->new([OPTIONS]);
 
@@ -293,61 +377,100 @@ Valid options are:
   ------     -----------                            -------
   -LocalAddr Interface to bind to                       any
   -LocalPort Port to bind server to                     514
-  -Timeout   Timeout in seconds to wait for request      10
+  -timeout   Timeout in seconds for socket               10
+             operations and to wait for request
 
 =head2 get_message() - listen for Syslog message
 
-  my $message = $syslogd->get_message();
+  my $message = $syslogd->get_message([OPTIONS]);
 
-Listen for a Syslog message.  Timeout after default or user specified 
-timeout set in C<new> method and return '0'; else, return is defined.
+Listen for Syslog messages.  Timeout after default or user specified 
+timeout set in C<new> method and return '0'.  If message is received 
+before timeout, return is defined.  Return is not defined if error 
+encountered.
 
-=head2 process_message() - process received Syslog message
+Valid options are:
 
-  $message->process_message();
+  Option     Description                            Default
+  ------     -----------                            -------
+  -maxsize   Max size in bytes of acceptable          65467
+             message.
+             Value can be integer 1 <= # <= 65467.
+             Keywords: 'RFC'         = 1024
+                       'recommended' = 2048
+  -timeout   Timeout in seconds to wait for              10
+             request.  Overrides value set with 
+             new().
 
-Process a received Syslog message by RFC 3164 - or as close as possible. 
-RFC 3164 format is as follows:
-
-  <###>Mmm dd hh:mm:ss hostname tag msg
-
-  |___||_____________|
-    |         Time
-   Priority
-
-B<NOTE:>  This module parses the tag and msg as a single field.
-
-This can also be called as a procedure if one is inclined to write 
-their own UDP listener instead of using C<get_message()>.  For example: 
-
-  $sock = IO::Socket::INET->new( blah blah blah );
-  $sock->recv($buffer, 1500);
-  $message = Net::Syslogd->process_message($buffer);
-
-In either instantiation, allows the following methods to be called.
-
-=head3 datagram() - return datagram from Syslog message
-
-  $message->datagram();
-
-Return the raw datagram received from a processed (C<process_message()>) 
-Syslog message.
+Allows the following methods to be called.
 
 =head3 peeraddr() - return remote address from Syslog message
 
   $message->peeraddr();
 
-Return peer address value from a received and processed 
-(C<process_message()>) Syslog message.  This is the address from the IP 
-header on the UDP datagram.
+Return peer address value from a received (C<get_message()>) 
+Syslog message.  This is the address from the IP header on the UDP 
+datagram.
 
 =head3 peerport() - return remote port from Syslog message
 
   $message->peerport();
 
-Return peer port value from a received and processed 
-(C<process_message()>) Syslog message.  This is the port from the IP 
-header on the UDP datagram.
+Return peer port value from a received (C<get_message()>) 
+Syslog message.  This is the port from the IP header on the UDP 
+datagram.
+
+=head3 datagram() - return datagram from Syslog message
+
+  $message->datagram();
+
+Return the raw datagram from a received (C<get_message()>) 
+Syslog message.
+
+=head2 process_message() - process received Syslog message
+
+  $message->process_message([OPTIONS]);
+
+Process a received Syslog message according to RFC 3164 - 
+or as close as possible. RFC 3164 format is as follows:
+
+  <###>Mmm dd hh:mm:ss hostname tag content
+  |___||_____________| |______| |_________|
+    |     Timestamp    Hostname   Message
+    |
+   Priority -> (facility and severity)
+
+B<NOTE:>  This module parses the tag and content as a single field.
+
+Called with one argument, interpreted as the datagram to process.  
+Valid options are:
+
+  Option     Description                            Default
+  ------     -----------                            -------
+  -datagram  Datagram to process                    -Provided by
+                                                     get_message()-
+  -regex     Regular expression to parse received   -Provided in
+             syslog message.                         this method-
+             Keywords: 'RFC' = Strict RFC 3164
+             Must include ()-matching:
+               $1 = priority
+               $2 = time
+               $3 = hostname
+               $4 = message
+
+B<NOTE:>  This uses a regex that parses RFC 3164 compliant syslog 
+messages.  It will also recoginize Cisco syslog messages (not fully 
+RFC 3164 compliant) sent with 'timestamp' rather than 'uptime'.
+
+This can also be called as a procedure if one is inclined to write 
+their own UDP listener instead of using C<get_message()>.  For example: 
+
+  $sock = IO::Socket::INET->new( blah blah blah );
+  $sock->recv($datagram, 1500);
+  # process datagram in $datagram variable
+  $message = Net::Syslogd->process_message($datagram);
+
+In either instantiation, allows the following methods to be called.
 
 =head3 priority() - return priority from Syslog message
 
@@ -407,68 +530,9 @@ None by default.
 
 =head1 EXAMPLES
 
-=head2 Simple Syslog Server
-
-This example implements a simple Syslog server that listens on the 
-default port and prints received messages to the console.
-
-  use Net::Syslogd;
-
-  my $syslogd = Net::Syslogd->new()
-    or die "Error creating Syslogd listener: %s", Net::Syslogd->error;
-
-  while (1) {
-      my $message;
-      if (!($message = $syslogd->get_message())) { next }
-
-      if (!(defined($message->process_message()))) {
-          printf "$0: %s\n", Net::Syslogd->error
-      } else {
-          printf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
-                 $message->peeraddr, 
-                 $message->peerport, 
-                 $message->facility, 
-                 $message->severity, 
-                 $message->time, 
-                 $message->hostname, 
-                 $message->message
-      }
-  }
-
-=head2 Forking Syslog Server
-
-  use Net::Syslogd;
-
-  my $syslogd = Net::Syslogd->new()
-    or die "Error creating Syslogd listener: %s", Net::Syslogd->error;
-
-  while (1) {
-      my $message;
-      if (!($message = $syslogd->get_message())) { next }
-
-      my $pid = fork();
-
-      if (!defined($pid)) {
-          print "fork() Error!\n";
-          exit
-      } elsif ($pid == 0) {
-          if (!(defined($message->process_message()))) {
-              printf "$0: %s\n", Net::Syslogd->error
-          } else {
-              printf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
-                     $message->peeraddr, 
-                     $message->peerport, 
-                     $message->facility, 
-                     $message->severity, 
-                     $message->time, 
-                     $message->hostname, 
-                     $message->message
-          }
-          exit
-      } else {
-          # parent
-      }
-  }
+This distribution comes with several scripts (installed to the default
+"bin" install directory) that not only demonstrate example uses but also
+provide functional execution.
 
 =head1 LICENSE
 
