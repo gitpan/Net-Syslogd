@@ -20,3 +20,7 @@ Revision history for Perl extension Net::Syslogd.
       - Updated regex in process_message() and added regex for user 
         defined regex to be passed in.
       - Updated bin/ scripts.
+
+0.05  Wed Aug 22 22:00:00 2012
+      - Changed to IO::Socket::IP and enabled IPv6 support.
+      - Updated tests.

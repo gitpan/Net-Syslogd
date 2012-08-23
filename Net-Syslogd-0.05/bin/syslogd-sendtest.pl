@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 use strict;
-use IO::Socket;
+use IO::Socket::IP -register;
 use Sys::Hostname;
 use Getopt::Long qw(:config no_ignore_case); #bundling
 use Pod::Usage;
@@ -10,8 +10,11 @@ my %opt;
 my ($opt_help, $opt_man);
 
 GetOptions(
+  '4!'          => \$opt{4},
+  '6!'          => \$opt{6},
   'datagram=s'  => \$opt{datagram},
   'facility=s'  => \$opt{facility},
+  'hostname=s'  => \$opt{hostname},
   'message=s'   => \$opt{message},
   'msec!'       => \$opt{msec},
   'severity=s'  => \$opt{severity},
@@ -22,6 +25,12 @@ GetOptions(
 
 pod2usage(-verbose => 1) if defined $opt_help;
 pod2usage(-verbose => 2) if defined $opt_man;
+
+# Default to IPv4
+my $family = AF_INET;
+if ($opt{6}) {
+    $family = AF_INET6
+}
 
 #   Strict RFC 3164
 # "<174>Dec 11 12:31:15 192.168.200.1 " . $0 . "[" . $$ . "]: Strict RFC 3164 format",
@@ -95,17 +104,20 @@ if (defined($opt{datagram})) {
     }
 
     ### Hostname
-    my $host = inet_ntoa((gethostbyname(hostname))[4]);
+    if (!defined($opt{hostname})) {
+        $opt{hostname} = 'localhost'
+    }
 
     ### Message
     my $msg = $opt{message} || "Message from $0";
 
-    $message = "<$priority>$timestamp $host $0\[$$\]: $msg"
+    $message = "<$priority>$timestamp $opt{hostname} $0\[$$\]: $msg"
 }
 
-my $sock = IO::Socket::INET->new(PeerAddr => $ARGV[0] || 'localhost',
-                                 PeerPort => 514,
-                                 Proto    => 'udp') or die "Error: creating Syslog sender - $!\n";
+my $sock = IO::Socket::IP->new(PeerAddr => $ARGV[0] || 'localhost',
+                               PeerPort => 514,
+                               Family   => $family,
+                               Proto    => 'udp') or die "Error: creating Syslog sender - $!\n";
 
 $sock->send($message);
 $sock->close();
@@ -127,36 +139,43 @@ Sends sample Syslog messages.
  host           The host to send to.
                 DEFAULT:  (or not specified) localhost.
 
- -d datagram    Entire Syslog datagram.  Use double-quotes to delimit.
- --datagram     Overrides all other options except 'host'.
-                Example:
-                  "<190>Jan 01 00:00:00 host syslog.pl[123]: Message"
+ -4               Force IPv4.
+ -6               Force IPv6 (overrides -4).
 
-                DEFAULT:  (or not specified) [build from user input]
+ -d datagram      Entire Syslog datagram.  Use double-quotes to delimit.
+ --datagram       Overrides all other options except 'host'.
+                  Example:
+                    "<190>Jan 01 00:00:00 host syslog.pl[123]: Message"
 
- -f facility    Syslog facility.  Valid facility:
- --facility       kernel, user, mail, system, security, internal, 
-                  printer, news, uucp, clock, security2, ftp, ntp, 
-                  audit, alert, clock2, local0, local1, local2, 
-                  local3, local4, local5, local6, local7
-                DEFAULT:  (or not specified) [local7]
+                  DEFAULT:  (or not specified) [build from user input]
 
- -me message    Syslog message.  Use double-quotes to delimit 
- --message      if spaces are used.
-                DEFAULT:  (or not specified) ["Message from ..."]
+ -f facility      Syslog facility.  Valid facility:
+ --facility         kernel, user, mail, system, security, internal,
+                    printer, news, uucp, clock, security2, ftp, ntp,
+                    audit, alert, clock2, local0, local1, local2,
+                    local3, local4, local5, local6, local7
+                  DEFAULT:  (or not specified) [local7]
 
- -ms            Include milliseconds in timestamp.
- --msec         Not RFC 3164 compliant.
-                DEFAULT:  (or not specified) [do not include]
+ -ho name|IP[v6]  Hostname.
+ --hostname       DEFAULT:  (or not specified) localhost
 
- -s severity    Syslog severity.  Valid severity:
-  --severity      emergency, alert, critical, error, 
-                  warning, notice, informational, debug
-                DEFAULT:  (or not specified) [informational]
 
- -y             Include year in timestamp.
- --year         Not RFC 3164 compliant.
-                DEFAULT:  (or not specified) [do not include]
+ -me message      Syslog message.  Use double-quotes to delimit
+ --message        if spaces are used.
+                  DEFAULT:  (or not specified) ["Message from ..."]
+
+ -ms              Include milliseconds in timestamp.
+ --msec           Not RFC 3164 compliant.
+                  DEFAULT:  (or not specified) [do not include]
+
+ -s severity      Syslog severity.  Valid severity:
+  --severity        emergency, alert, critical, error,
+                    warning, notice, informational, debug
+                  DEFAULT:  (or not specified) [informational]
+
+ -y               Include year in timestamp.
+ --year           Not RFC 3164 compliant.
+                  DEFAULT:  (or not specified) [do not include]
 
 =head1 LICENSE
 

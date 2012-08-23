@@ -9,6 +9,8 @@ my %opt;
 my ($opt_help, $opt_man);
 
 GetOptions(
+  '4!'          => \$opt{4},
+  '6!'          => \$opt{6},
   'directory=s' => \$opt{dir},
   'interface:i' => \$opt{interface},
   'write+'      => \$opt{write},
@@ -18,6 +20,12 @@ GetOptions(
 
 pod2usage(-verbose => 1) if defined $opt_help;
 pod2usage(-verbose => 2) if defined $opt_man;
+
+# Default to IPv4
+my $family = 4;
+if ($opt{6}) {
+    $family = 6
+}
 
 # -d is a directory, if it exists, assign it
 if (defined($opt{dir})) {
@@ -44,7 +52,8 @@ if (defined($opt{interface})) {
 }
 
 my $syslogd = Net::Syslogd->new(
-                                LocalPort => $opt{interface}
+                                LocalPort => $opt{interface},
+                                Family    => $family
                                );
 
 if (!$syslogd) {
@@ -116,6 +125,9 @@ message format.  Syslog columns are:
   Message
 
 =head1 OPTIONS
+
+ -4               Force IPv4.
+ -6               Force IPv6 (overrides -4).
 
  -d <dir>         Output file directory.
  --directory      DEFAULT:  (or not specified) [Current].

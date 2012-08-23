@@ -12,9 +12,9 @@ require 5.005;
 use strict;
 use Exporter;
 
-use IO::Socket;
+use IO::Socket::IP -register;
 
-our $VERSION     = '0.04';
+our $VERSION     = '0.05';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
@@ -49,7 +49,8 @@ sub new {
     my %params = (
         'Proto'     => 'udp',
         'LocalPort' => SYSLOGD_DEFAULT_PORT,
-        'Timeout'   => 10
+        'Timeout'   => 10,
+        'Family'    => AF_INET
     );
 
     if (@_ == 1) {
@@ -62,6 +63,17 @@ sub new {
                 $params{'LocalPort'} = $cfg{$_}
             } elsif (/^-?localaddr$/i) {
                 $params{'LocalAddr'} = $cfg{$_}
+            } elsif (/^-?family$/i) {
+                if ($cfg{$_} =~ /^[46]$/) {
+                    if ($cfg{$_} == 4) {
+                        $params{'Family'} = AF_INET
+                    } else {
+                        $params{'Family'} = AF_INET6
+                    }
+                } else {
+                    $LASTERROR = "Invalid family - $cfg{$_}";
+                    return(undef)
+                }
             } elsif (/^-?timeout$/i) {
                 if ($cfg{$_} =~ /^\d+$/) {
                     $params{'Timeout'} = $cfg{$_}
@@ -73,7 +85,7 @@ sub new {
         }
     }
 
-    if (my $udpserver = IO::Socket::INET->new(%params)) {
+    if (my $udpserver = IO::Socket::IP->new(%params)) {
         return bless {
                       %params,         # merge user parameters
                       '_UDPSERVER_' => $udpserver
@@ -142,9 +154,8 @@ sub get_message {
         # read the message
         if ($udpserver->recv($datagram, $datagramsize)) {
 
-            my ($peerport, $peeraddr) = sockaddr_in($udpserver->peername);
-            $message->{'_MESSAGE_'}{'PeerPort'} = $peerport;
-            $message->{'_MESSAGE_'}{'PeerAddr'} = inet_ntoa($peeraddr);
+            $message->{'_MESSAGE_'}{'PeerPort'} = $udpserver->peerport;
+            $message->{'_MESSAGE_'}{'PeerAddr'} = $udpserver->peerhost;
             $message->{'_MESSAGE_'}{'datagram'} = $datagram;
 
             return bless $message, $class
@@ -201,7 +212,10 @@ sub process_message {
     # <189>94: *Oct 16 2010 21:51:49 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
     #   service timestamps log datetime msec year show-timezone
     # <189>91: *Oct 16 2010 21:48:41.663 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
-    my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)) )?(.*)';
+    # IPv4 only
+    # my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)) )?(.*)';
+    # IPv6
+    my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)|(?:(?:(?:[0-9A-Fa-f]{1,4}:){7}(?:[0-9A-Fa-f]{1,4}|:))|(?:(?:[0-9A-Fa-f]{1,4}:){6}(?::[0-9A-Fa-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9A-Fa-f]{1,4}:){5}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,2})|:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9A-Fa-f]{1,4}:){4}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,3})|(?:(?::[0-9A-Fa-f]{1,4})?:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){3}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,4})|(?:(?::[0-9A-Fa-f]{1,4}){0,2}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){2}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,5})|(?:(?::[0-9A-Fa-f]{1,4}){0,3}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){1}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|(?:(?::[0-9A-Fa-f]{1,4}){0,4}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?::(?:(?:(?::[0-9A-Fa-f]{1,4}){1,7})|(?:(?::[0-9A-Fa-f]{1,4}){0,5}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(?:%.+)?) )?(.*)';
 
     # If more than 1 argument, parse the options
     if (@_ != 1) {
@@ -375,6 +389,8 @@ Valid options are:
 
   Option     Description                            Default
   ------     -----------                            -------
+  -Family    Address family IPv4/IPv6                     4
+             given as integer 4 or 6
   -LocalAddr Interface to bind to                       any
   -LocalPort Port to bind server to                     514
   -timeout   Timeout in seconds for socket               10
@@ -384,9 +400,9 @@ Valid options are:
 
   my $message = $syslogd->get_message([OPTIONS]);
 
-Listen for Syslog messages.  Timeout after default or user specified 
-timeout set in C<new> method and return '0'.  If message is received 
-before timeout, return is defined.  Return is not defined if error 
+Listen for Syslog messages.  Timeout after default or user specified
+timeout set in C<new> method and return '0'.  If message is received
+before timeout, return is defined.  Return is not defined if error
 encountered.
 
 Valid options are:
@@ -399,7 +415,7 @@ Valid options are:
              Keywords: 'RFC'         = 1024
                        'recommended' = 2048
   -timeout   Timeout in seconds to wait for              10
-             request.  Overrides value set with 
+             request.  Overrides value set with
              new().
 
 Allows the following methods to be called.
@@ -465,7 +481,7 @@ RFC 3164 compliant) sent with 'timestamp' rather than 'uptime'.
 This can also be called as a procedure if one is inclined to write 
 their own UDP listener instead of using C<get_message()>.  For example: 
 
-  $sock = IO::Socket::INET->new( blah blah blah );
+  $sock = IO::Socket::IP->new( blah blah blah );
   $sock->recv($datagram, 1500);
   # process datagram in $datagram variable
   $message = Net::Syslogd->process_message($datagram);

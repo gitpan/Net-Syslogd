@@ -7,8 +7,8 @@ WriteMakefile(
     VERSION_FROM      => 'lib/Net/Syslogd.pm', # finds $VERSION
     EXE_FILES         => ['bin/syslogd-simple.pl', 
                           'bin/syslogd-sendtest.pl'],
-    PREREQ_PM         => {Test::Simple => undef,
-                          IO::Socket => undef }, # e.g., Module::Name => 1.1
+    PREREQ_PM         => {Test::Simple => 0,
+                          IO::Socket::IP => 0.16 }, # e.g., Module::Name => 1.1
     ($] >= 5.005 ?     ## Add these new keywords supported since 5.005
       (ABSTRACT_FROM  => 'lib/Net/Syslogd.pm', # retrieve abstract from module
        AUTHOR         => 'Michael Vincent <vin at vinsworld dot com>') : ()),

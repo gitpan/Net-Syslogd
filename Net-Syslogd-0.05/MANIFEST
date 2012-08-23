@@ -8,3 +8,4 @@ t/Net-Syslogd.t
 test.pl
 lib/Net/Syslogd.pm
 META.yml                                 Module meta-data (added by MakeMaker)
+META.json                                Module JSON meta-data (added by MakeMaker)
