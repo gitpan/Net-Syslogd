@@ -61,6 +61,8 @@ if (!$syslogd) {
     exit 1
 }
 
+printf "Listening on %s:%i\n", $syslogd->server->sockhost, $syslogd->server->sockport;
+
 while (1) {
     my $message = $syslogd->get_message();
 

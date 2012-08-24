@@ -1,4 +1,4 @@
-Net-Syslogd version 0.05
+Net-Syslogd version 0.06
 ========================
 
 INSTALLATION
@@ -14,7 +14,7 @@ DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-   IO::Socket
+   IO::Socket::IP
    Test::Simple
 
 COPYRIGHT AND LICENCE

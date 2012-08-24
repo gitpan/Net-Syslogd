@@ -14,7 +14,7 @@ use Exporter;
 
 use IO::Socket::IP -register;
 
-our $VERSION     = '0.05';
+our $VERSION     = '0.06';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
@@ -258,6 +258,11 @@ sub process_message {
     return bless $self, $class
 }
 
+sub server {
+    my $self = shift;
+    return $self->{'_UDPSERVER_'}
+}
+
 sub datagram {
     my $self = shift;
     return $self->{'_MESSAGE_'}{'datagram'}
@@ -396,6 +401,15 @@ Valid options are:
   -timeout   Timeout in seconds for socket               10
              operations and to wait for request
 
+Allows the following accessors to be called.
+
+=head3 server() - return IO::Socket::IP object for server
+
+  $syslogd->server();
+
+Return B<IO::Socket::IP> object for the created server.  
+All B<IO::Socket::IP> accessors can then be called.
+
 =head2 get_message() - listen for Syslog message
 
   my $message = $syslogd->get_message([OPTIONS]);
@@ -418,14 +432,14 @@ Valid options are:
              request.  Overrides value set with
              new().
 
-Allows the following methods to be called.
+Allows the following accessors to be called.
 
 =head3 peeraddr() - return remote address from Syslog message
 
   $message->peeraddr();
 
-Return peer address value from a received (C<get_message()>) 
-Syslog message.  This is the address from the IP header on the UDP 
+Return peer address value from a received (C<get_message()>)
+Syslog message.  This is the address from the IP header on the UDP
 datagram.
 
 =head3 peerport() - return remote port from Syslog message
@@ -486,7 +500,7 @@ their own UDP listener instead of using C<get_message()>.  For example:
   # process datagram in $datagram variable
   $message = Net::Syslogd->process_message($datagram);
 
-In either instantiation, allows the following methods to be called.
+In either instantiation, allows the following accessors to be called.
 
 =head3 priority() - return priority from Syslog message
 

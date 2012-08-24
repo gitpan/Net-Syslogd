@@ -20,4 +20,4 @@ no_index:
 requires:
   IO::Socket::IP: 0.16
   Test::Simple: 0
-version: 0.05
+version: 0.06

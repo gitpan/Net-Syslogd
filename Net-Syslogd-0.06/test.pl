@@ -3,10 +3,10 @@
 # `make test'. After `make install' it should work as `perl Net-SNMPTrapd.t'
 
 use strict;
-use Test::Simple tests => 20;
+use Test::Simple tests => 21;
 
 my $VERBOSE   = 0;
-my $NUM_TESTS = 20;
+my $NUM_TESTS = 21;
 
 use Net::Syslogd;
 ok(1, "Loading Module"); # If we made it this far, we're ok.
@@ -42,13 +42,14 @@ if (lc($answer) ne 'y') {
 sub start_server {
     my $syslogd = Net::Syslogd->new();
     if (defined($syslogd)) {
-        return 0
+        return $syslogd
     } else {
         printf "Error: %s\nDo you have a Syslog program listening already?\n  ('netstat -an | grep 514')\n", Net::Syslogd->error;
-        return 1
+        return undef
     }
 }
-if (start_server() == 1) {
+my $syslogd = start_server();
+if (!defined($syslogd)) {
     ok(1, "Starting Server - Skipping remaining tests");
     for (3..$NUM_TESTS) {
         ok(1, "Skipping test ...")
@@ -60,6 +61,14 @@ if (start_server() == 1) {
 
 #########################
 # Test 3
+if ($syslogd->server->sockport == 514) {
+    ok(1, "server() accessor");
+} else {
+    ok(0, "server() accessor");
+}
+
+#########################
+# Test 4 - 20
 sub receive_message {
     my @tests = (
         {
@@ -148,12 +157,6 @@ sub receive_message {
         }
     );
 
-    my $syslogd = Net::Syslogd->new();
-    if (!defined($syslogd)) {
-        printf "Error: %s\n", Net::Syslogd->error;
-        return 1
-    }
-
     my $pid = fork();
 
     if (!defined($pid)) {
@@ -162,10 +165,13 @@ sub receive_message {
     } elsif ($pid == 0) {
         #child
         sleep 2;
-        use IO::Socket;
-        my $sock=new IO::Socket::INET(PeerAddr => 'localhost',
-                                      PeerPort => 514,
-                                      Proto    => 'udp');
+        use IO::Socket::IP -register;
+        my $sock=new IO::Socket::IP(
+                                    PeerAddr => 'localhost',
+                                    PeerPort => 514,
+                                    Proto    => 'udp',
+                                    Family   => AF_INET
+                                   );
         if (!defined($sock)) {
             printf "Error: Syslog send test could not start: %s\n", $sock->sockopt(SO_ERROR);
             return 1
@@ -255,7 +261,7 @@ sub receive_message {
 receive_message();
 
 #########################
-# Test 4
+# Test 21
 sub process_as_sub {
     my $FAILED = 0;
 
