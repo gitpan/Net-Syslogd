@@ -14,7 +14,7 @@ use Exporter;
 
 use IO::Socket::IP -register;
 
-our $VERSION     = '0.06';
+our $VERSION     = '0.07';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (

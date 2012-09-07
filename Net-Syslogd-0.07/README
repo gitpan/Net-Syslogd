@@ -1,4 +1,4 @@
-Net-Syslogd version 0.06
+Net-Syslogd version 0.07
 ========================
 
 INSTALLATION
@@ -16,6 +16,7 @@ This module requires these other modules and libraries:
 
    IO::Socket::IP
    Test::Simple
+   Term::ReadKey
 
 COPYRIGHT AND LICENCE
 
