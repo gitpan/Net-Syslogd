@@ -1,10 +1,19 @@
 #!/usr/bin/perl
 
 use strict;
-use IO::Socket::IP -register;
 use Sys::Hostname;
 use Getopt::Long qw(:config no_ignore_case); #bundling
 use Pod::Usage;
+
+use Socket 1.87 qw(AF_INET AF_INET6);
+
+my $HAVE_IO_Socket_IP = 0;
+eval "use IO::Socket::IP -register";
+if(!$@) {
+    $HAVE_IO_Socket_IP = 1;
+} else {
+    eval "use IO::Socket::INET";
+}
 
 my %opt;
 my ($opt_help, $opt_man);
@@ -30,6 +39,11 @@ pod2usage(-verbose => 2) if defined $opt_man;
 my $family = AF_INET;
 if ($opt{6}) {
     $family = AF_INET6
+}
+
+if ($family == AF_INET6) {
+    print "IO::Socket::IP required for IPv6\n";
+    exit 1
 }
 
 #   Strict RFC 3164
@@ -114,10 +128,21 @@ if (defined($opt{datagram})) {
     $message = "<$priority>$timestamp $opt{hostname} $0\[$$\]: $msg"
 }
 
-my $sock = IO::Socket::IP->new(PeerAddr => $ARGV[0] || 'localhost',
-                               PeerPort => 514,
-                               Family   => $family,
-                               Proto    => 'udp') or die "Error: creating Syslog sender - $!\n";
+my $sock;
+if ($HAVE_IO_Socket_IP) {
+    $sock = IO::Socket::IP->new(
+        PeerHost => $ARGV[0] || 'localhost',
+        PeerPort => 514,
+        Family   => $family,
+        Proto    => 'udp'
+    ) or die "Error: creating Syslog sender - $!\n";
+} else {
+    $sock = IO::Socket::INET->new(
+        PeerHost => $ARGV[0] || 'localhost',
+        PeerPort => 514,
+        Proto    => 'udp'
+    ) or die "Error: creating Syslog sender - $!\n";
+}
 
 $sock->send($message);
 $sock->close();
