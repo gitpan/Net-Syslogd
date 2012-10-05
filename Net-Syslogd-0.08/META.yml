@@ -18,6 +18,5 @@ no_index:
     - t
     - inc
 requires:
-  IO::Socket::IP: 0.16
   Test::Simple: 0
-version: 0.07
+version: 0.08

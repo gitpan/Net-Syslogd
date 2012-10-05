@@ -6,7 +6,7 @@ Revision history for Perl extension Net::Syslogd.
 
 0.02  Wed Jan 13 19:29:48 2010
       - Updated dependences to include IO::Socket and Test::Simple
-      - Updated test plan to not fail if sockets can't be opened.  
+      - Updated test plan to not fail if sockets can't be opened.
         Instead, print error message about Syslog already on UDP 514
         and exit gracefully.
       - Corrected POD documentation inconsistencies and spelling.
@@ -17,7 +17,7 @@ Revision history for Perl extension Net::Syslogd.
 
 0.04  Fri Oct 15 23:30:00 2010
       - Added PDU size and timeout options to get_message() method.
-      - Updated regex in process_message() and added regex for user 
+      - Updated regex in process_message() and added regex for user
         defined regex to be passed in.
       - Updated bin/ scripts.
 
@@ -30,3 +30,9 @@ Revision history for Perl extension Net::Syslogd.
 
 0.07  Tue Sep  4 12:00:00 2012
       - Timeout on advanced tests with EU::MM prompt().
+
+0.08  Thu Oct  4 23:59:00 2012
+      - Make IO::Socket::IP optional with failback to IP::Socket::INET
+        with SUPER.
+      - Changed peeraddr(), peerport() accessors to remoteaddr(),
+        remoteport() to remove conflict with IO::Socket::*.

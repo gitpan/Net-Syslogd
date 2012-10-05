@@ -165,12 +165,11 @@ sub receive_message {
     } elsif ($pid == 0) {
         #child
         sleep 2;
-        use IO::Socket::IP -register;
-        my $sock=new IO::Socket::IP(
+        use IO::Socket::INET;
+        my $sock=new IO::Socket::INET(
                                     PeerAddr => 'localhost',
                                     PeerPort => 514,
-                                    Proto    => 'udp',
-                                    Family   => AF_INET
+                                    Proto    => 'udp'
                                    );
         if (!defined($sock)) {
             printf "Error: Syslog send test could not start: %s\n", $sock->sockopt(SO_ERROR);
@@ -198,19 +197,19 @@ sub receive_message {
             } else {
                 print "  -- $_->{name} --\n" if ($VERBOSE);
 
-                print "  peeraddr = " if ($VERBOSE);
-                if (defined($message->peeraddr) && ($message->peeraddr eq "127.0.0.1")) { 
-                    printf "%s\n", $message->peeraddr if ($VERBOSE)
+                print "  remoteaddr = " if ($VERBOSE);
+                if (defined($message->remoteaddr) && ($message->remoteaddr eq "127.0.0.1")) { 
+                    printf "%s\n", $message->remoteaddr if ($VERBOSE)
                 } else { 
-                    printf "  !ERROR! - %s\n", $message->peeraddr if ($VERBOSE);
+                    printf "  !ERROR! - %s\n", $message->remoteaddr if ($VERBOSE);
                     $FAILED++
                 }
 
-                print "  peerport = " if ($VERBOSE);
-                if (defined($message->peerport) && ($message->peerport =~ /^\d{1,5}$/)) {
-                    printf "%s\n", $message->peerport if ($VERBOSE);
+                print "  remoteport = " if ($VERBOSE);
+                if (defined($message->remoteport) && ($message->remoteport =~ /^\d{1,5}$/)) {
+                    printf "%s\n", $message->remoteport if ($VERBOSE);
                 } else {
-                    printf "  !ERROR! - %s\n", $message->peerport if ($VERBOSE);
+                    printf "  !ERROR! - %s\n", $message->remoteport if ($VERBOSE);
                     $FAILED++
                 } 
 

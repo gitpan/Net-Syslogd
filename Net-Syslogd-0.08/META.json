@@ -32,11 +32,10 @@
       },
       "runtime" : {
          "requires" : {
-            "IO::Socket::IP" : "0.16",
             "Test::Simple" : "0"
          }
       }
    },
    "release_status" : "stable",
-   "version" : "0.07"
+   "version" : "0.08"
 }

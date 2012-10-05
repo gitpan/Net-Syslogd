@@ -77,8 +77,8 @@ while (1) {
         printf "$0: %s\n", Net::Syslogd->error
     } else {
         my $p = sprintf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
-                         $message->peeraddr, 
-                         $message->peerport, 
+                         $message->remoteaddr, 
+                         $message->remoteport, 
                          $message->facility, 
                          $message->severity, 
                          $message->time, 
@@ -92,7 +92,7 @@ while (1) {
 
             if    ($opt{write} == 1) { $outfile .= "syslogd.log"               }
             elsif ($opt{write} == 2) { $outfile .= $message->facility . ".log" }
-            else                       { $outfile .= $message->peeraddr . ".log" }
+            else                     { $outfile .= $message->remoteaddr . ".log" }
 
             if (open(OUT, ">>$outfile")) {
                 print OUT $p;

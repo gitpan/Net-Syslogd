@@ -11,16 +11,25 @@ require 5.005;
 
 use strict;
 use Exporter;
+use Socket 1.87 qw(AF_INET AF_INET6);
 
-use IO::Socket::IP -register;
-
-our $VERSION     = '0.07';
+our $VERSION     = '0.08';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
                     'all' => [qw()]
                    );
 our @EXPORT_OK   = (@{$EXPORT_TAGS{'all'}});
+
+my $HAVE_IO_Socket_IP = 0;
+eval "use IO::Socket::IPP -register";
+if(!$@) {
+    $HAVE_IO_Socket_IP = 1;
+    push @ISA, "IO::Socket::IP"
+} else {
+    require IO::Socket::INET;
+    push @ISA, "IO::Socket::INET";
+}
 
 ########################################################
 # Start Variables
@@ -64,10 +73,13 @@ sub new {
             } elsif (/^-?localaddr$/i) {
                 $params{'LocalAddr'} = $cfg{$_}
             } elsif (/^-?family$/i) {
-                if ($cfg{$_} =~ /^[46]$/) {
-                    if ($cfg{$_} == 4) {
+                 if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?(?:4|6))|${\AF_INET}|${\AF_INET6})$/) {
+                    if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?4)|${\AF_INET})$/) {
                         $params{'Family'} = AF_INET
                     } else {
+                        if (!$HAVE_IO_Socket_IP) {
+                            $LASTERROR = "IO::Socket::IP required for IPv6"
+                        }
                         $params{'Family'} = AF_INET6
                     }
                 } else {
@@ -85,7 +97,7 @@ sub new {
         }
     }
 
-    if (my $udpserver = IO::Socket::IP->new(%params)) {
+    if (my $udpserver = $class->SUPER::new(%params)) {
         return bless {
                       %params,         # merge user parameters
                       '_UDPSERVER_' => $udpserver
@@ -113,7 +125,7 @@ sub get_message {
         $LASTERROR = "Insufficient number of args: @_";
         return(undef)
     } else {
-        my %args = @_;        
+        my %args = @_;
         for (keys(%args)) {
             # -maxsize
             if (/^-?(?:max)?size$/i) {
@@ -154,13 +166,13 @@ sub get_message {
         # read the message
         if ($udpserver->recv($datagram, $datagramsize)) {
 
-            $message->{'_MESSAGE_'}{'PeerPort'} = $udpserver->peerport;
-            $message->{'_MESSAGE_'}{'PeerAddr'} = $udpserver->peerhost;
+            $message->{'_MESSAGE_'}{'PeerPort'} = $udpserver->SUPER::peerport;
+            $message->{'_MESSAGE_'}{'PeerAddr'} = $udpserver->SUPER::peerhost;
             $message->{'_MESSAGE_'}{'datagram'} = $datagram;
 
             return bless $message, $class
         } else {
-            $LASTERROR = sprintf "Socket RECV error: %s", $udpserver->sockopt(SO_ERROR);
+            $LASTERROR = sprintf "Socket RECV error: $!";
             return(undef)
         }
     } else {
@@ -268,12 +280,12 @@ sub datagram {
     return $self->{'_MESSAGE_'}{'datagram'}
 }
 
-sub peeraddr {
+sub remoteaddr {
     my $self = shift;
     return $self->{'_MESSAGE_'}{'PeerAddr'}
 }
 
-sub peerport {
+sub remoteport {
     my $self = shift;
     return $self->{'_MESSAGE_'}{'PeerPort'}
 }
@@ -366,21 +378,21 @@ Net::Syslogd - Perl implementation of Syslog Listener
       if (!defined($message->process_message())) {
           printf "$0: %s\n", Net::Syslogd->error
       } else {
-          printf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
-                 $message->peeraddr, 
-                 $message->peerport, 
-                 $message->facility, 
-                 $message->severity, 
-                 $message->time, 
-                 $message->hostname, 
+          printf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n",
+                 $message->remoteaddr,
+                 $message->remoteport,
+                 $message->facility,
+                 $message->severity,
+                 $message->time,
+                 $message->hostname,
                  $message->message
       }
   }
 
 =head1 DESCRIPTION
 
-Net::Syslogd is a class implementing a simple Syslog listener in Perl.  
-Net::Syslogd will accept messages on the default Syslog port (UDP 514) 
+Net::Syslogd is a class implementing a simple Syslog listener in Perl.
+Net::Syslogd will accept messages on the default Syslog port (UDP 514)
 and attempt to decode them according to RFC 3164.
 
 =head1 METHODS
@@ -394,12 +406,18 @@ Valid options are:
 
   Option     Description                            Default
   ------     -----------                            -------
-  -Family    Address family IPv4/IPv6                     4
-             given as integer 4 or 6
+  -Family    Address family IPv4/IPv6                  IPv4
+               Valid values for IPv4:
+                 4, v4, ip4, ipv4, AF_INET (constant)
+               Valid values for IPv6:
+                 6, v6, ip6, ipv6, AF_INET6 (constant)
   -LocalAddr Interface to bind to                       any
   -LocalPort Port to bind server to                     514
   -timeout   Timeout in seconds for socket               10
              operations and to wait for request
+
+B<NOTE>:  IPv6 requires IO::Socket::IP.  Failback is IO::Socket::INET 
+and only IPv4 support.
 
 Allows the following accessors to be called.
 
@@ -407,7 +425,7 @@ Allows the following accessors to be called.
 
   $syslogd->server();
 
-Return B<IO::Socket::IP> object for the created server.  
+Return B<IO::Socket::IP> object for the created server.
 All B<IO::Socket::IP> accessors can then be called.
 
 =head2 get_message() - listen for Syslog message
@@ -434,34 +452,34 @@ Valid options are:
 
 Allows the following accessors to be called.
 
-=head3 peeraddr() - return remote address from Syslog message
+=head3 remoteaddr() - return remote address from Syslog message
 
-  $message->peeraddr();
+  $message->remoteaddr();
 
-Return peer address value from a received (C<get_message()>)
+Return remote address value from a received (C<get_message()>)
 Syslog message.  This is the address from the IP header on the UDP
 datagram.
 
-=head3 peerport() - return remote port from Syslog message
+=head3 remoteport() - return remote port from Syslog message
 
-  $message->peerport();
+  $message->remoteport();
 
-Return peer port value from a received (C<get_message()>) 
-Syslog message.  This is the port from the IP header on the UDP 
+Return remote port value from a received (C<get_message()>)
+Syslog message.  This is the port from the IP header on the UDP
 datagram.
 
 =head3 datagram() - return datagram from Syslog message
 
   $message->datagram();
 
-Return the raw datagram from a received (C<get_message()>) 
+Return the raw datagram from a received (C<get_message()>)
 Syslog message.
 
 =head2 process_message() - process received Syslog message
 
   $message->process_message([OPTIONS]);
 
-Process a received Syslog message according to RFC 3164 - 
+Process a received Syslog message according to RFC 3164 -
 or as close as possible. RFC 3164 format is as follows:
 
   <###>Mmm dd hh:mm:ss hostname tag content
@@ -472,7 +490,7 @@ or as close as possible. RFC 3164 format is as follows:
 
 B<NOTE:>  This module parses the tag and content as a single field.
 
-Called with one argument, interpreted as the datagram to process.  
+Called with one argument, interpreted as the datagram to process.
 Valid options are:
 
   Option     Description                            Default
@@ -488,12 +506,12 @@ Valid options are:
                $3 = hostname
                $4 = message
 
-B<NOTE:>  This uses a regex that parses RFC 3164 compliant syslog 
-messages.  It will also recoginize Cisco syslog messages (not fully 
+B<NOTE:>  This uses a regex that parses RFC 3164 compliant syslog
+messages.  It will also recoginize Cisco syslog messages (not fully
 RFC 3164 compliant) sent with 'timestamp' rather than 'uptime'.
 
-This can also be called as a procedure if one is inclined to write 
-their own UDP listener instead of using C<get_message()>.  For example: 
+This can also be called as a procedure if one is inclined to write
+their own UDP listener instead of using C<get_message()>.  For example:
 
   $sock = IO::Socket::IP->new( blah blah blah );
   $sock->recv($datagram, 1500);
@@ -506,46 +524,46 @@ In either instantiation, allows the following accessors to be called.
 
   $message->priority();
 
-Return priority value from a received and processed 
-(C<process_message()>) Syslog message.  This is the raw priority number 
+Return priority value from a received and processed
+(C<process_message()>) Syslog message.  This is the raw priority number
 not decoded into facility and severity.
 
 =head3 facility() - return facility from Syslog message
 
   $message->facility([1]);
 
-Return facility value from a received and processed 
-(C<process_message()>) Syslog message.  This is the text representation 
+Return facility value from a received and processed
+(C<process_message()>) Syslog message.  This is the text representation
 of the facility.  For the raw number, use the optional boolean argument.
 
 =head3 severity() - return severity from Syslog message
 
   $message->severity([1]);
 
-Return severity value from a received and processed 
-(C<process_message()>) Syslog message.  This is the text representation 
+Return severity value from a received and processed
+(C<process_message()>) Syslog message.  This is the text representation
 of the severity.  For the raw number, use the optional boolean argument.
 
 =head3 time() - return time from Syslog message
 
   $message->time();
 
-Return time value from a received and processed 
+Return time value from a received and processed
 (C<process_message()>) Syslog message.
 
 =head3 hostname() - return hostname from Syslog message
 
   $message->hostname();
 
-Return hostname value from a received and processed 
+Return hostname value from a received and processed
 (C<process_message()>) Syslog message.
 
 =head3 message() - return message from Syslog message
 
   $message->message();
 
-Return message value from a received and processed 
-(C<process_message()>) Syslog message.  Note this is the tag B<and> msg 
+Return message value from a received and processed
+(C<process_message()>) Syslog message.  Note this is the tag B<and> msg
 field from a properly formatted RFC 3164 Syslog message.
 
 =head2 error() - return last error
