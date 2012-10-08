@@ -52,9 +52,9 @@ if (defined($opt{interface})) {
 }
 
 my $syslogd = Net::Syslogd->new(
-                                LocalPort => $opt{interface},
-                                Family    => $family
-                               );
+    LocalPort => $opt{interface},
+    Family    => $family
+);
 
 if (!$syslogd) {
     printf "$0: Error creating Syslogd listener: %s", Net::Syslogd->error;

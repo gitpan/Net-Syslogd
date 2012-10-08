@@ -41,7 +41,7 @@ if ($opt{6}) {
     $family = AF_INET6
 }
 
-if ($family == AF_INET6) {
+if (!$HAVE_IO_Socket_IP && ($family == AF_INET6)) {
     print "IO::Socket::IP required for IPv6\n";
     exit 1
 }

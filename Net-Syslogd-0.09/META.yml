@@ -18,5 +18,6 @@ no_index:
     - t
     - inc
 requires:
+  Socket: 1.87
   Test::Simple: 0
-version: 0.08
+version: 0.09

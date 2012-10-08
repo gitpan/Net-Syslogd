@@ -1,22 +1,23 @@
-Net-Syslogd version 0.08
+Net-Syslogd version 0.09
 ========================
 
 INSTALLATION
 
 To install this module type the following:
 
-   perl Makefile.PL
-   make
-   make test
-   make install
+  perl Makefile.PL
+  make
+  make test
+  make install
 
 DEPENDENCIES
 
 This module requires these other modules and libraries:
 
-   IO::Socket::IP (for IPv6 support)
-   Test::Simple
-   Term::ReadKey
+  Socket 1.87
+  IO::Socket::IP (for IPv6 support)
+  Test::Simple
+  Term::ReadKey
 
 COPYRIGHT AND LICENCE
 
