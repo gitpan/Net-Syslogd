@@ -1,5 +1,5 @@
 ---
-abstract: Perl implementation of Syslog Listener
+abstract: 'Perl implementation of Syslog Listener'
 author:
   - 'Michael Vincent <vin at vinsworld dot com>'
 build_requires:
@@ -20,4 +20,4 @@ no_index:
 requires:
   Socket: 1.87
   Test::Simple: 0
-version: 0.09
+version: 0.10

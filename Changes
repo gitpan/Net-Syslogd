@@ -39,3 +39,7 @@ Revision history for Perl extension Net::Syslogd.
 
 0.09  Sun Oct  7 21:30:00 2012
       - Require Socket 1.87.
+
+0.10  Fri Aug 22 21:30:00 2013
+      - Fixed bug in hostname detection
+      - Added --list to bin\syslogd-simple.pl

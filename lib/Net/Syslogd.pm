@@ -13,7 +13,7 @@ use strict;
 use Exporter;
 use Socket 1.87 qw(AF_INET AF_INET6);
 
-our $VERSION     = '0.09';
+our $VERSION     = '0.10';
 our @ISA         = qw(Exporter);
 our @EXPORT      = qw();
 our %EXPORT_TAGS = (
@@ -158,28 +158,30 @@ sub get_message {
     my $udpserver = $self->{'_UDPSERVER_'};
     my $datagram;
 
-    # vars for IO select
-    my ($rin, $rout, $ein, $eout) = ('', '', '', '');
-    vec($rin, fileno($udpserver), 1) = 1;
+    if ($Timeout != 0) {
+        # vars for IO select
+        my ($rin, $rout, $ein, $eout) = ('', '', '', '');
+        vec($rin, fileno($udpserver), 1) = 1;
 
-    # check if a message is waiting
-    if (select($rout=$rin, undef, $eout=$ein, $Timeout)) {
-        # read the message
-        if ($udpserver->recv($datagram, $datagramsize)) {
-
-            $message->{'_MESSAGE_'}{'PeerPort'} = $udpserver->SUPER::peerport;
-            $message->{'_MESSAGE_'}{'PeerAddr'} = $udpserver->SUPER::peerhost;
-            $message->{'_MESSAGE_'}{'datagram'} = $datagram;
-
-            return bless $message, $class
-        } else {
-            $LASTERROR = sprintf "Socket RECV error: $!";
-            return(undef)
+        # check if a message is waiting
+        if (! select($rout=$rin, undef, $eout=$ein, $Timeout)) {
+            $LASTERROR = "Timed out waiting for datagram";
+            return(0)
         }
-    } else {
-        $LASTERROR = "Timed out waiting for datagram";
-        return(0)
     }
+
+    # read the message
+    if ($udpserver->recv($datagram, $datagramsize)) {
+
+        $message->{'_MESSAGE_'}{'PeerPort'} = $udpserver->SUPER::peerport;
+        $message->{'_MESSAGE_'}{'PeerAddr'} = $udpserver->SUPER::peerhost;
+        $message->{'_MESSAGE_'}{'datagram'} = $datagram;
+
+        return bless $message, $class
+    }
+
+    $LASTERROR = sprintf "Socket RECV error: $!";
+    return(undef)
 }
 
 sub process_message {
@@ -226,9 +228,9 @@ sub process_message {
     #   service timestamps log datetime msec year show-timezone
     # <189>91: *Oct 16 2010 21:48:41.663 UTC: %SYS-5-CONFIG_I: Configured from console by cisco on vty0 (192.168.200.1)
     # IPv4 only
-    # my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)) )?(.*)';
+    # my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z0-9\-]+)) )?(.*)';
     # IPv6
-    my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3})*)?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)|(?:(?:(?:[0-9A-Fa-f]{1,4}:){7}(?:[0-9A-Fa-f]{1,4}|:))|(?:(?:[0-9A-Fa-f]{1,4}:){6}(?::[0-9A-Fa-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9A-Fa-f]{1,4}:){5}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,2})|:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9A-Fa-f]{1,4}:){4}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,3})|(?:(?::[0-9A-Fa-f]{1,4})?:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){3}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,4})|(?:(?::[0-9A-Fa-f]{1,4}){0,2}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){2}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,5})|(?:(?::[0-9A-Fa-f]{1,4}){0,3}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){1}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|(?:(?::[0-9A-Fa-f]{1,4}){0,4}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?::(?:(?:(?::[0-9A-Fa-f]{1,4}){1,7})|(?:(?::[0-9A-Fa-f]{1,4}){0,5}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(?:%.+)?) )?(.*)';
+    my $regex = '<(\d{1,3})>[\d{1,}: \*]*((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})? (?:\d{2}:\d{2}:\d{2}[\.\d{1,3}]*)(?: [A-Z]{1,3}:)?)?:?\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z0-9\-]+)|(?:(?:(?:[0-9A-Fa-f]{1,4}:){7}(?:[0-9A-Fa-f]{1,4}|:))|(?:(?:[0-9A-Fa-f]{1,4}:){6}(?::[0-9A-Fa-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9A-Fa-f]{1,4}:){5}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,2})|:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(?:(?:[0-9A-Fa-f]{1,4}:){4}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,3})|(?:(?::[0-9A-Fa-f]{1,4})?:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){3}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,4})|(?:(?::[0-9A-Fa-f]{1,4}){0,2}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){2}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,5})|(?:(?::[0-9A-Fa-f]{1,4}){0,3}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?:(?:[0-9A-Fa-f]{1,4}:){1}(?:(?:(?::[0-9A-Fa-f]{1,4}){1,6})|(?:(?::[0-9A-Fa-f]{1,4}){0,4}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(?::(?:(?:(?::[0-9A-Fa-f]{1,4}){1,7})|(?:(?::[0-9A-Fa-f]{1,4}){0,5}:(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))(?:%.+)?) )?(.*)';
 
     # If more than 1 argument, parse the options
     if (@_ != 1) {
@@ -242,7 +244,7 @@ sub process_message {
             if (/^-?regex$/i) {
                 if ($args{$_} =~ /^rfc(?:3164)?$/i) {
                     # Strict RFC 3164
-                    $regex = '<(\d{1,3})>((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})* (?:\d{2}:\d{2}:\d{2}))?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z\-]+)) )?(.*)'
+                    $regex = '<(\d{1,3})>((?:[JFMASONDjfmasond]\w\w) {1,2}(?:\d+)(?: \d{4})? (?:\d{2}:\d{2}:\d{2}))?:*\s*(?:((?:[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:[a-zA-Z0-9\-]+)) )?(.*)'
                 } else {
                     $regex = $args{$_};
                     # strip leading / if found
@@ -267,6 +269,7 @@ sub process_message {
     $self->{'_MESSAGE_'}{'facility'} = ($self->{'_MESSAGE_'}{'priority'} - $self->{'_MESSAGE_'}{'severity'}) / 8;
 
     $self->{'_MESSAGE_'}{'hostname'} =~ s/\s+//;
+    $self->{'_MESSAGE_'}{'time'}     =~ s/:$//;
 
     return bless $self, $class
 }

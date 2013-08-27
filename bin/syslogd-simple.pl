@@ -13,6 +13,7 @@ GetOptions(
   '6!'          => \$opt{6},
   'directory=s' => \$opt{dir},
   'interface:i' => \$opt{interface},
+  'list!'       => \$opt{list},
   'write+'      => \$opt{write},
   'help!'       => \$opt_help,
   'man!'        => \$opt_man
@@ -76,14 +77,32 @@ while (1) {
     if (!defined($message->process_message())) {
         printf "$0: %s\n", Net::Syslogd->error
     } else {
-        my $p = sprintf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
-                         $message->remoteaddr, 
-                         $message->remoteport, 
-                         $message->facility, 
-                         $message->severity, 
-                         $message->time, 
-                         $message->hostname, 
-                         $message->message;
+        my $p;
+        if ($opt{list}) {
+            $p = sprintf "RemoteAddr = %s\n" . 
+                         "RemotePort = %s\n" . 
+                         "Severity   = %s\n" . 
+                         "Facility   = %s\n" . 
+                         "Time       = %s\n" . 
+                         "Hostname   = %s\n" . 
+                         "Message    = %s\n",
+                $message->remoteaddr,
+                $message->remoteport,
+                $message->severity,
+                $message->facility,
+                $message->time,
+                $message->hostname,
+                $message->message
+        } else {
+            $p = sprintf "%s\t%i\t%s\t%s\t%s\t%s\t%s\n", 
+                $message->remoteaddr,
+                $message->remoteport,
+                $message->severity,
+                $message->facility,
+                $message->time,
+                $message->hostname,
+                $message->message
+        }
         print $p;
 
         if ($opt{write}) {
@@ -136,6 +155,9 @@ message format.  Syslog columns are:
 
  -i #             UDP Port to listen on.
  --interface      DEFAULT:  (or not specified) 514.
+
+ -l               Output list format.
+ --list           DEFAULT:  (or not specified) Line.
 
  -w               Log to "syslogd.log".
  -w -w            Log by facility in "<facility>.log".
