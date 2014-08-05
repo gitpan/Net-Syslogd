@@ -1,25 +1,16 @@
 package Net::Syslogd;
 
 ########################################################
-#
 # AUTHOR = Michael Vincent
 # www.VinsWorld.com
-#
 ########################################################
 
-require 5.005;
-
 use strict;
-use Exporter;
+use warnings;
 use Socket 1.87 qw(AF_INET AF_INET6);
 
-our $VERSION     = '0.10';
-our @ISA         = qw(Exporter);
-our @EXPORT      = qw();
-our %EXPORT_TAGS = (
-                    'all' => [qw()]
-                   );
-our @EXPORT_OK   = (@{$EXPORT_TAGS{'all'}});
+our $VERSION = '0.11';
+our @ISA;
 
 my $HAVE_IO_Socket_IP = 0;
 eval "use IO::Socket::IP -register";
@@ -39,8 +30,8 @@ use constant SYSLOGD_RFC_SIZE     => 1024;  # RFC Limit
 use constant SYSLOGD_REC_SIZE     => 2048;  # Recommended size
 use constant SYSLOGD_MAX_SIZE     => 65467; # Actual limit (65535 - IP/UDP)
 
-our @FACILITY = qw(kernel user mail system security internal printer news uucp clock security2 FTP NTP audit alert clock2 local0 local1 local2 local3 local4 local5 local6 local7);
-our @SEVERITY = qw(Emergency Alert Critical Error Warning Notice Informational Debug);
+my @FACILITY = qw(kernel user mail system security internal printer news uucp clock security2 FTP NTP audit alert clock2 local0 local1 local2 local3 local4 local5 local6 local7);
+my @SEVERITY = qw(Emergency Alert Critical Error Warning Notice Informational Debug);
 our $LASTERROR;
 ########################################################
 # End Variables
@@ -64,35 +55,35 @@ sub new {
 
     if (@_ == 1) {
         $LASTERROR = "Insufficient number of args - @_";
-        return(undef)
+        return undef
     } else {
         my %cfg = @_;
         for (keys(%cfg)) {
             if (/^-?localport$/i) {
-                $params{'LocalPort'} = $cfg{$_}
+                $params{LocalPort} = $cfg{$_}
             } elsif (/^-?localaddr$/i) {
-                $params{'LocalAddr'} = $cfg{$_}
+                $params{LocalAddr} = $cfg{$_}
             } elsif (/^-?family$/i) {
                  if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?(?:4|6))|${\AF_INET}|${\AF_INET6})$/) {
                     if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?4)|${\AF_INET})$/) {
-                        $params{'Family'} = AF_INET
+                        $params{Family} = AF_INET
                     } else {
                         if (!$HAVE_IO_Socket_IP) {
                             $LASTERROR = "IO::Socket::IP required for IPv6";
-                            return(undef)
+                            return undef
                         }
-                        $params{'Family'} = AF_INET6
+                        $params{Family} = AF_INET6
                     }
                 } else {
                     $LASTERROR = "Invalid family - $cfg{$_}";
-                    return(undef)
+                    return undef
                 }
             } elsif (/^-?timeout$/i) {
                 if ($cfg{$_} =~ /^\d+$/) {
-                    $params{'Timeout'} = $cfg{$_}
+                    $params{Timeout} = $cfg{$_}
                 } else {
                     $LASTERROR = "Invalid timeout - $cfg{$_}";
-                    return(undef)
+                    return undef
                 }
             }
         }
@@ -105,7 +96,7 @@ sub new {
                      }, $class
     } else {
         $LASTERROR = "Error opening socket for listener: $@";
-        return(undef)
+        return undef
     }
 }
 
@@ -124,7 +115,7 @@ sub get_message {
     my $datagramsize = SYSLOGD_MAX_SIZE;
     if (@_ == 1) {
         $LASTERROR = "Insufficient number of args: @_";
-        return(undef)
+        return undef
     } else {
         my %args = @_;
         for (keys(%args)) {
@@ -140,22 +131,22 @@ sub get_message {
                     $datagramsize = SYSLOGD_REC_SIZE
                 } else {
                     $LASTERROR = "Not a valid size: $args{$_}";
-                    return(undef)
+                    return undef
                 }
             # -timeout
             } elsif (/^-?timeout$/i) {
                 if ($args{$_} =~ /^\d+$/) {
-                    $message->{'Timeout'} = $args{$_}
+                    $message->{Timeout} = $args{$_}
                 } else {
                     $LASTERROR = "Invalid timeout - $args{$_}";
-                    return(undef)
+                    return undef
                 }
             }
         }
     }
 
-    my $Timeout = $message->{'Timeout'};
-    my $udpserver = $self->{'_UDPSERVER_'};
+    my $Timeout = $message->{Timeout};
+    my $udpserver = $self->{_UDPSERVER_};
     my $datagram;
 
     if ($Timeout != 0) {
@@ -173,15 +164,15 @@ sub get_message {
     # read the message
     if ($udpserver->recv($datagram, $datagramsize)) {
 
-        $message->{'_MESSAGE_'}{'PeerPort'} = $udpserver->SUPER::peerport;
-        $message->{'_MESSAGE_'}{'PeerAddr'} = $udpserver->SUPER::peerhost;
-        $message->{'_MESSAGE_'}{'datagram'} = $datagram;
+        $message->{_MESSAGE_}{PeerPort} = $udpserver->SUPER::peerport;
+        $message->{_MESSAGE_}{PeerAddr} = $udpserver->SUPER::peerhost;
+        $message->{_MESSAGE_}{datagram} = $datagram;
 
         return bless $message, $class
     }
 
     $LASTERROR = sprintf "Socket RECV error: $!";
-    return(undef)
+    return undef
 }
 
 sub process_message {
@@ -193,13 +184,13 @@ sub process_message {
     if (($self eq $class) && ($class eq __PACKAGE__)) {
         my %th;
         $self = \%th;
-        ($self->{'_MESSAGE_'}{'datagram'}) = @_
+        ($self->{_MESSAGE_}{datagram}) = @_
     }
     # Net::Syslogd::process_message($data)
     if ($class ne __PACKAGE__) {
         my %th;
         $self = \%th;
-        ($self->{'_MESSAGE_'}{'datagram'}) = $class;
+        ($self->{_MESSAGE_}{datagram}) = $class;
         $class = __PACKAGE__
     }
 
@@ -238,7 +229,7 @@ sub process_message {
         for (keys(%args)) {
             # -datagram
             if ((/^-?data(?:gram)?$/i) || (/^-?pdu$/i)) {
-                $self->{'_MESSAGE_'}{'datagram'} = $args{$_}
+                $self->{_MESSAGE_}{datagram} = $args{$_}
             }
             # -regex
             if (/^-?regex$/i) {
@@ -259,53 +250,53 @@ sub process_message {
     my $Cregex = qr/$regex/;
 
     # Parse message
-    $self->{'_MESSAGE_'}{'datagram'} =~ /$Cregex/;
+    $self->{_MESSAGE_}{datagram} =~ /$Cregex/;
 
-    $self->{'_MESSAGE_'}{'priority'} = $1;
-    $self->{'_MESSAGE_'}{'time'}     = $2 || 0;
-    $self->{'_MESSAGE_'}{'hostname'} = $3 || 0;
-    $self->{'_MESSAGE_'}{'message'}  = $4;
-    $self->{'_MESSAGE_'}{'severity'} = $self->{'_MESSAGE_'}{'priority'} % 8;
-    $self->{'_MESSAGE_'}{'facility'} = ($self->{'_MESSAGE_'}{'priority'} - $self->{'_MESSAGE_'}{'severity'}) / 8;
+    $self->{_MESSAGE_}{priority} = $1;
+    $self->{_MESSAGE_}{time}     = $2 || 0;
+    $self->{_MESSAGE_}{hostname} = $3 || 0;
+    $self->{_MESSAGE_}{message}  = $4;
+    $self->{_MESSAGE_}{severity} = $self->{_MESSAGE_}{priority} % 8;
+    $self->{_MESSAGE_}{facility} = ($self->{_MESSAGE_}{priority} - $self->{_MESSAGE_}{severity}) / 8;
 
-    $self->{'_MESSAGE_'}{'hostname'} =~ s/\s+//;
-    $self->{'_MESSAGE_'}{'time'}     =~ s/:$//;
+    $self->{_MESSAGE_}{hostname} =~ s/\s+//;
+    $self->{_MESSAGE_}{time}     =~ s/:$//;
 
     return bless $self, $class
 }
 
 sub server {
     my $self = shift;
-    return $self->{'_UDPSERVER_'}
+    return $self->{_UDPSERVER_}
 }
 
 sub datagram {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'datagram'}
+    return $self->{_MESSAGE_}{datagram}
 }
 
 sub remoteaddr {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'PeerAddr'}
+    return $self->{_MESSAGE_}{PeerAddr}
 }
 
 sub remoteport {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'PeerPort'}
+    return $self->{_MESSAGE_}{PeerPort}
 }
 
 sub priority {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'priority'}
+    return $self->{_MESSAGE_}{priority}
 }
 
 sub facility {
     my ($self, $arg) = @_;
 
     if (defined($arg) && ($arg >= 1)) {
-        return $self->{'_MESSAGE_'}{'facility'}
+        return $self->{_MESSAGE_}{facility}
     } else {
-        return $FACILITY[$self->{'_MESSAGE_'}{'facility'}]
+        return $FACILITY[$self->{_MESSAGE_}{facility}]
     }
 }
 
@@ -313,25 +304,25 @@ sub severity {
     my ($self, $arg) = @_;
 
     if (defined($arg) && ($arg >= 1)) {
-        return $self->{'_MESSAGE_'}{'severity'}
+        return $self->{_MESSAGE_}{severity}
     } else {
-        return $SEVERITY[$self->{'_MESSAGE_'}{'severity'}]
+        return $SEVERITY[$self->{_MESSAGE_}{severity}]
     }
 }
 
 sub time {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'time'}
+    return $self->{_MESSAGE_}{time}
 }
 
 sub hostname {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'hostname'}
+    return $self->{_MESSAGE_}{hostname}
 }
 
 sub message {
     my $self = shift;
-    return $self->{'_MESSAGE_'}{'message'}
+    return $self->{_MESSAGE_}{message}
 }
 
 sub error {
@@ -340,14 +331,6 @@ sub error {
 
 ########################################################
 # End Public Module
-########################################################
-
-########################################################
-# Start Private subs
-########################################################
-
-########################################################
-# End Private subs
 ########################################################
 
 1;

@@ -1,10 +1,11 @@
 #!/usr/bin/perl
 
 use strict;
-use Sys::Hostname;
+use warnings;
 use Getopt::Long qw(:config no_ignore_case); #bundling
 use Pod::Usage;
 
+use Sys::Hostname;
 use Socket 1.87 qw(AF_INET AF_INET6);
 
 my $HAVE_IO_Socket_IP = 0;
@@ -19,17 +20,17 @@ my %opt;
 my ($opt_help, $opt_man);
 
 GetOptions(
-  '4!'          => \$opt{4},
-  '6!'          => \$opt{6},
-  'datagram=s'  => \$opt{datagram},
-  'facility=s'  => \$opt{facility},
-  'hostname=s'  => \$opt{hostname},
-  'message=s'   => \$opt{message},
-  'msec!'       => \$opt{msec},
-  'severity=s'  => \$opt{severity},
-  'year!'       => \$opt{year},
-  'help!'       => \$opt_help,
-  'man!'        => \$opt_man
+  '4!'           => \$opt{4},
+  '6!'           => \$opt{6},
+  'datagram=s'   => \$opt{datagram},
+  'facility=s'   => \$opt{facility},
+  'h|hostname=s' => \$opt{hostname},
+  'm|message=s'  => \$opt{message},
+  'msec!'        => \$opt{msec},
+  'severity=s'   => \$opt{severity},
+  'year!'        => \$opt{year},
+  'help!'        => \$opt_help,
+  'man!'         => \$opt_man
 ) or pod2usage(-verbose => 0);
 
 pod2usage(-verbose => 1) if defined $opt_help;
@@ -147,6 +148,8 @@ if ($HAVE_IO_Socket_IP) {
 $sock->send($message);
 $sock->close();
 
+__END__
+
 =head1 NAME
 
 SYSLOGD-SENDTEST - Syslog Message Tests
@@ -181,11 +184,11 @@ Sends sample Syslog messages.
                     local3, local4, local5, local6, local7
                   DEFAULT:  (or not specified) [local7]
 
- -ho name|IP[v6]  Hostname.
+ -h name|IP[v6]   Hostname.
  --hostname       DEFAULT:  (or not specified) localhost
 
 
- -me message      Syslog message.  Use double-quotes to delimit
+ -m message       Syslog message.  Use double-quotes to delimit
  --message        if spaces are used.
                   DEFAULT:  (or not specified) ["Message from ..."]
 

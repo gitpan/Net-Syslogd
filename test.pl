@@ -7,8 +7,8 @@ use warnings;
 use Test::Simple tests => 21;
 use ExtUtils::MakeMaker qw(prompt);
 
-my $VERBOSE   = 0;
 my $NUM_TESTS = 21;
+my $VERBOSE   = 0;
 
 use Net::Syslogd;
 ok(1, "Loading Module"); # If we made it this far, we're ok.
@@ -167,10 +167,10 @@ sub receive_message {
         sleep 2;
         use IO::Socket::INET;
         my $sock=new IO::Socket::INET(
-                                    PeerAddr => 'localhost',
-                                    PeerPort => 514,
-                                    Proto    => 'udp'
-                                   );
+            PeerAddr => 'localhost',
+            PeerPort => 514,
+            Proto    => 'udp'
+        );
         if (!defined($sock)) {
             printf "Error: Syslog send test could not start: %s\n", $sock->sockopt(SO_ERROR);
             return 1

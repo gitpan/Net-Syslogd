@@ -1,9 +1,11 @@
 #!/usr/bin/perl
 
 use strict;
-use Net::Syslogd;
+use warnings;
 use Getopt::Long qw(:config no_ignore_case); #bundling
 use Pod::Usage;
+
+use Net::Syslogd;
 
 my %opt;
 my ($opt_help, $opt_man);
@@ -80,12 +82,12 @@ while (1) {
         my $p;
         if ($opt{list}) {
             $p = sprintf "RemoteAddr = %s\n" . 
-                         "RemotePort = %s\n" . 
-                         "Severity   = %s\n" . 
-                         "Facility   = %s\n" . 
-                         "Time       = %s\n" . 
-                         "Hostname   = %s\n" . 
-                         "Message    = %s\n",
+                "RemotePort = %s\n" . 
+                "Severity   = %s\n" . 
+                "Facility   = %s\n" . 
+                "Time       = %s\n" . 
+                "Hostname   = %s\n" . 
+                "Message    = %s\n",
                 $message->remoteaddr,
                 $message->remoteport,
                 $message->severity,
@@ -122,6 +124,8 @@ while (1) {
         }
     }
 }
+
+__END__
 
 =head1 NAME
 
