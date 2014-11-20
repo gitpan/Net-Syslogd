@@ -7,9 +7,11 @@ package Net::Syslogd;
 
 use strict;
 use warnings;
-use Socket 1.87 qw(AF_INET AF_INET6);
+use Socket qw(AF_INET);
 
-our $VERSION = '0.11';
+my $AF_INET6 = eval { Socket::AF_INET6() };
+
+our $VERSION = '0.12';
 our @ISA;
 
 my $HAVE_IO_Socket_IP = 0;
@@ -64,7 +66,7 @@ sub new {
             } elsif (/^-?localaddr$/i) {
                 $params{LocalAddr} = $cfg{$_}
             } elsif (/^-?family$/i) {
-                 if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?(?:4|6))|${\AF_INET}|${\AF_INET6})$/) {
+                 if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?(?:4|6))|${\AF_INET}|$AF_INET6)$/) {
                     if ($cfg{$_} =~ /^(?:(?:(:?ip)?v?4)|${\AF_INET})$/) {
                         $params{Family} = AF_INET
                     } else {
@@ -72,7 +74,7 @@ sub new {
                             $LASTERROR = "IO::Socket::IP required for IPv6";
                             return undef
                         }
-                        $params{Family} = AF_INET6
+                        $params{Family} = $AF_INET6
                     }
                 } else {
                     $LASTERROR = "Invalid family - $cfg{$_}";
@@ -85,6 +87,8 @@ sub new {
                     $LASTERROR = "Invalid timeout - $cfg{$_}";
                     return undef
                 }
+            } else {
+                $params{$_} = $cfg{$_}
             }
         }
     }

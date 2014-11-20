@@ -1,6 +1,11 @@
 Revision history for Perl extension Net::Syslogd.
 
-0.10  Mon Aug  4 21:30:00 2014
+0.12  Thu Nov 20 21:30:00 2014
+      - Updated Socket requirements for IPv6.
+      - Updated bin/syslogd-sendtest.pl error when no priority value 
+        provided.
+
+0.11  Mon Aug  4 21:30:00 2014
       - Top down order for Changes.
       - Added LICENSE to Makefile.PL.
       - Cleanup code (remove Exporter).

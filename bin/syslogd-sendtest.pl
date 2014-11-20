@@ -6,7 +6,9 @@ use Getopt::Long qw(:config no_ignore_case); #bundling
 use Pod::Usage;
 
 use Sys::Hostname;
-use Socket 1.87 qw(AF_INET AF_INET6);
+use Socket qw(AF_INET);
+
+my $AF_INET6 = eval { Socket::AF_INET6() };
 
 my $HAVE_IO_Socket_IP = 0;
 eval "use IO::Socket::IP -register";
@@ -39,10 +41,10 @@ pod2usage(-verbose => 2) if defined $opt_man;
 # Default to IPv4
 my $family = AF_INET;
 if ($opt{6}) {
-    $family = AF_INET6
+    $family = $AF_INET6
 }
 
-if (!$HAVE_IO_Socket_IP && ($family == AF_INET6)) {
+if (!$HAVE_IO_Socket_IP && ($family == $AF_INET6)) {
     print "IO::Socket::IP required for IPv6\n";
     exit 1
 }
@@ -99,11 +101,13 @@ if (defined($opt{datagram})) {
 
     my @month = qw(Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec);
 
+    $opt{facility} = $opt{facility} || 'local7';
+    $opt{severity} = $opt{severity} || 'informational';
     ### Priority
     # Facility
-    my $facility = $SYSLOG_FAC{$opt{facility}} || 23;
+    my $facility = $SYSLOG_FAC{$opt{facility}};
     # Severity
-    my $severity = $SYSLOG_SEV{$opt{severity}} || 6;
+    my $severity = $SYSLOG_SEV{$opt{severity}};
     # Priority
     my $priority = (($facility<<3)|($severity));
 
